@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+option go_package = "oversee/collector";
+
+package collector;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+service Collector {
+  rpc PersistLog (PersistLogRequest) returns (PersistLogReply) {}
+  rpc BatchPersistLog (BatchPersistLogRequest) returns (PersistLogReply) {}
+}
+
+message PersistLogRequest {
+  string id = 1;
+  google.protobuf.Timestamp timestamp = 2;  // Event timestamp (ISO 8601)
+  string service_name = 3;                   // Originating service
+  string operation = 4;                      // Action performed (e.g., "user.create", "order.update")
+  string actor_id = 5;                       // User, system, or process performing the action
+  string actor_type = 6;                     // E.g., "user", "service_account", "admin"
+  repeated string affected_resources = 7;    // List of resource IDs affected
+  google.protobuf.Struct metadata = 8;
+  string integrity_hash = 9;                // Optional HMAC/SHA256 hash for tamper-proofing
+
+}
+
+message PersistLogReply {
+  string id =1;
+  bool success = 2;
+}
+
+message BatchPersistLogRequest {
+  repeated PersistLogRequest logs = 1;
+}
+
+message PersistLogsReply {
+  repeated PersistLogReply results = 1;
+}

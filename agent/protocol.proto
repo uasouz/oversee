@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option go_package = "oversee/agent";
+
+package agent;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+service Agent {
+  rpc Log (LogRequest) returns (LogReply) {}
+}
+
+message LogRequest {
+  google.protobuf.Timestamp timestamp = 1;  // Event timestamp (ISO 8601)
+  string service_name = 2;                   // Originating service
+  string operation = 3;                      // Action performed (e.g., "user.create", "order.update")
+  string actor_id = 4;                       // User, system, or process performing the action
+  string actor_type = 5;                     // E.g., "user", "service_account", "admin"
+  repeated string affected_resources = 6;    // List of resource IDs affected
+  google.protobuf.Struct metadata = 7;
+  string integrity_hash = 8;                // Optional HMAC/SHA256 hash for tamper-proofing
+
+}
+
+message LogReply {
+  bool success = 1;
+}
