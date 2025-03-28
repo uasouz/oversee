@@ -13,7 +13,9 @@ import (
 	"github.com/dgraph-io/ristretto/v2/z"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	status "google.golang.org/grpc/status"
 )
 
 // Agent represents an agent in the system.
@@ -136,6 +138,26 @@ func (agent *Agent) Start() error {
 			})
 
 			if err != nil {
+				st, ok := status.FromError(err)
+
+				if ok {
+					switch st.Code() {
+					case codes.AlreadyExists:
+						fmt.Println("Persisted", string(item.Key))
+						err = agent.db.Update(func(txn *badger.Txn) error {
+							return txn.Delete(item.Key)
+						})
+
+						if err != nil {
+							return err
+						}
+
+						return nil
+					default:
+						return err
+					}
+				}
+
 				return err
 			}
 
