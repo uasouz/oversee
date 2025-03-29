@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"oversee/collector/persistence"
 	"oversee/core"
@@ -119,40 +118,38 @@ func (s *SQLitePersistence) BatchPersistLog(ctx context.Context, logs []*core.Lo
 
 	results := make([]*persistence.LogPersistenceResult, len(logs))
 	for i, log := range logs {
-		timestampStr := log.Timestamp.Format(time.RFC3339Nano)
+		timestampInt := log.Timestamp.Unix()
 		metadataJSON, err := json.Marshal(log.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 		}
 
-		res, err := stmt.ExecContext(ctx,
+		affectedResourcesJSON, err := json.Marshal(log.AffectedResources)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal affected resources: %w", err)
+		}
+
+		_, err = stmt.ExecContext(ctx,
 			log.ID,
-			timestampStr,
+			timestampInt,
 			log.ServiceName,
 			log.Operation,
 			log.ActorID,
 			log.ActorType,
-			log.AffectedResources,
+			affectedResourcesJSON,
 			string(metadataJSON),
 			log.IntegrityHash,
 		)
 		if err != nil {
 			results[i] = &persistence.LogPersistenceResult{
-				ID:      "",
+				ID:      log.ID,
 				Success: false,
 			}
 		} else {
-			id, err := res.LastInsertId()
-			if err != nil {
-				results[i] = &persistence.LogPersistenceResult{
-					ID:      "",
-					Success: false,
-				}
-			} else {
-				results[i] = &persistence.LogPersistenceResult{
-					ID:      fmt.Sprintf("%d", id),
-					Success: true,
-				}
+			results[i] = &persistence.LogPersistenceResult{
+				ID:      log.ID,
+				Success: true,
 			}
 		}
 	}

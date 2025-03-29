@@ -9,7 +9,7 @@ import "google/protobuf/struct.proto";
 
 service Collector {
   rpc PersistLog (PersistLogRequest) returns (PersistLogReply) {}
-  rpc BatchPersistLog (BatchPersistLogRequest) returns (PersistLogReply) {}
+  rpc BatchPersistLog (BatchPersistLogRequest) returns (PersistLogsReply) {}
 }
 
 message PersistLogRequest {

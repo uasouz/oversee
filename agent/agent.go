@@ -24,12 +24,20 @@ import (
 // This buffer must be flushed periodically to ensure that the data is not lost.
 // The buffer is also flushed when the agent is stopped for wathever reason.
 
+type DispatchMode int
+
+const (
+	DispatchModeBatch = iota + 1
+	DisptachModeIndividual
+)
+
 type Agent struct {
-	Name        string
-	Application Application
-	db          *badger.DB
-	stream      *badger.Stream
-	bufferFile  *os.File
+	Name         string
+	Application  Application
+	DispatchMode DispatchMode
+	db           *badger.DB
+	stream       *badger.Stream
+	bufferFile   *os.File
 
 	flushTime int
 
@@ -82,6 +90,89 @@ func (agent *Agent) Log(prefix string, log LogLine) error {
 	})
 }
 
+func (agent *Agent) batchDispatch(ctx context.Context, kvList *badger.KVList) error {
+	logs := []*collector.PersistLogRequest{}
+
+	for _, item := range kvList.GetKv() {
+		logs = append(logs, &collector.PersistLogRequest{
+			Id: string(item.Key),
+		})
+	}
+
+	reply, err := agent.collectorClient.BatchPersistLog(ctx, &collector.BatchPersistLogRequest{
+		Logs: logs,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, result := range reply.Results {
+		if result.GetSuccess() {
+			fmt.Println("Persisted", result.Id)
+			err = agent.db.Update(func(txn *badger.Txn) error {
+				return txn.Delete([]byte(result.Id))
+			})
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (agent *Agent) simpleDispatch(ctx context.Context, kvList *badger.KVList) error {
+	for _, item := range kvList.GetKv() {
+		fmt.Println("Consuming", string(item.Key), string(item.Value))
+		fmt.Println(agent.collectorAddress)
+
+		reply, err := agent.collectorClient.PersistLog(ctx, &collector.PersistLogRequest{
+			Id: string(item.Key),
+		})
+
+		if err != nil {
+			st, ok := status.FromError(err)
+
+			if ok {
+				switch st.Code() {
+				case codes.AlreadyExists:
+					fmt.Println("Persisted", string(item.Key))
+					err = agent.db.Update(func(txn *badger.Txn) error {
+						return txn.Delete(item.Key)
+					})
+
+					if err != nil {
+						return err
+					}
+
+					return nil
+				default:
+					return err
+				}
+			}
+
+			return err
+		}
+
+		fmt.Println("Reply", reply)
+		if reply.GetSuccess() && reply.Id == string(item.Key) {
+			fmt.Println("Persisted", string(item.Key))
+			err = agent.db.Update(func(txn *badger.Txn) error {
+				return txn.Delete(item.Key)
+			})
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+
+}
+
 func (agent *Agent) Start() error {
 	signal.Notify(agent.signals, syscall.SIGTERM)
 	defer agent.shutdown()
@@ -129,52 +220,11 @@ func (agent *Agent) Start() error {
 			return err
 		}
 
-		for _, item := range kvList.GetKv() {
-			fmt.Println("Consuming", string(item.Key), string(item.Value))
-			fmt.Println(agent.collectorAddress)
-
-			reply, err := agent.collectorClient.PersistLog(ctx, &collector.PersistLogRequest{
-				Id: string(item.Key),
-			})
-
-			if err != nil {
-				st, ok := status.FromError(err)
-
-				if ok {
-					switch st.Code() {
-					case codes.AlreadyExists:
-						fmt.Println("Persisted", string(item.Key))
-						err = agent.db.Update(func(txn *badger.Txn) error {
-							return txn.Delete(item.Key)
-						})
-
-						if err != nil {
-							return err
-						}
-
-						return nil
-					default:
-						return err
-					}
-				}
-
-				return err
-			}
-
-			fmt.Println("Reply", reply)
-			if reply.GetSuccess() && reply.Id == string(item.Key) {
-				fmt.Println("Persisted", string(item.Key))
-				err = agent.db.Update(func(txn *badger.Txn) error {
-					return txn.Delete(item.Key)
-				})
-
-				if err != nil {
-					return err
-				}
-			}
+		if agent.DispatchMode == DispatchModeBatch {
+			return agent.batchDispatch(ctx, kvList)
 		}
 
-		return nil
+		return agent.simpleDispatch(ctx, kvList)
 	}
 
 	agent.stream = stream
@@ -194,15 +244,12 @@ func (agent *Agent) flushBuffer() error {
 	return nil
 }
 
-func dispatch(content []byte) {
-	//
-}
-
 func NewAgent(name string, applicationName string, collectorAddress string) *Agent {
 	agent := &Agent{
 		Name:             name,
 		signals:          make(chan os.Signal, 1),
 		collectorAddress: collectorAddress,
+		DispatchMode:     DispatchModeBatch,
 		Application: Application{
 			Name:          applicationName,
 			Version:       "1.0.0",

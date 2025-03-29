@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"oversee/collector/persistence"
@@ -18,8 +19,38 @@ type CollectorAPI struct {
 }
 
 // BatchPersistLog implements CollectorServer.
-func (c CollectorAPI) BatchPersistLog(context.Context, *BatchPersistLogRequest) (*PersistLogReply, error) {
-	panic("unimplemented")
+func (c CollectorAPI) BatchPersistLog(ctx context.Context, request *BatchPersistLogRequest) (*PersistLogsReply, error) {
+	fmt.Printf("Persisting %d logs", len(request.Logs))
+	logs := []*core.Log{}
+	for _, persistLogRequest := range request.Logs {
+		logs = append(logs, LogFromPersistLogRequest(persistLogRequest))
+	}
+
+	results, err := c.persistence.BatchPersistLog(ctx, logs)
+
+	if err != nil {
+		return nil, err
+	}
+
+	replies := []*PersistLogReply{}
+
+	for _, result := range results {
+		replies = append(replies, LogPersistenceResultToPersistLogReply(result))
+	}
+
+	v, _ := json.Marshal(results)
+	fmt.Println(replies, string(v))
+
+	return &PersistLogsReply{
+		Results: replies,
+	}, nil
+}
+
+func LogPersistenceResultToPersistLogReply(result *persistence.LogPersistenceResult) *PersistLogReply {
+	return &PersistLogReply{
+		Id:      result.ID,
+		Success: result.Success,
+	}
 }
 
 func LogFromPersistLogRequest(request *PersistLogRequest) *core.Log {
@@ -64,11 +95,7 @@ func (c CollectorAPI) PersistLog(ctx context.Context, request *PersistLogRequest
 		}, err
 	}
 
-	return &PersistLogReply{
-		Id:      result.ID,
-		Success: true,
-	}, nil
-
+	return LogPersistenceResultToPersistLogReply(result), nil
 }
 
 func (a *CollectorAPI) Serve() error {
