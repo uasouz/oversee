@@ -1,4 +1,4 @@
-package collector
+package api
 
 import (
 	"context"
@@ -22,8 +22,9 @@ type CollectorAPI struct {
 func (c CollectorAPI) BatchPersistLog(ctx context.Context, request *BatchPersistLogRequest) (*PersistLogsReply, error) {
 	fmt.Printf("Persisting %d logs", len(request.Logs))
 	logs := []*core.Log{}
-	for _, persistLogRequest := range request.Logs {
-		logs = append(logs, LogFromPersistLogRequest(persistLogRequest))
+
+	for _, log := range request.Logs {
+		logs = append(logs, LogEntityFromAPILog(log))
 	}
 
 	results, err := c.persistence.BatchPersistLog(ctx, logs)
@@ -53,44 +54,48 @@ func LogPersistenceResultToPersistLogReply(result *persistence.LogPersistenceRes
 	}
 }
 
-func LogFromPersistLogRequest(request *PersistLogRequest) *core.Log {
+func LogEntityFromAPILog(log *Log) *core.Log {
 	metadataMap := make(map[string]any)
-	if request.Metadata != nil {
-		for key, value := range request.Metadata.Fields {
+	if log.Metadata != nil {
+		for key, value := range log.Metadata.Fields {
 			metadataMap[key] = value.AsInterface()
 		}
 	}
 
 	return &core.Log{
-		ID:                request.Id,
-		Timestamp:         request.Timestamp.AsTime(),
-		ServiceName:       request.ServiceName,
-		Operation:         request.Operation,
-		ActorID:           request.ActorId,
-		ActorType:         request.ActorType,
-		AffectedResources: request.AffectedResources,
+		ID:                log.Id,
+		Timestamp:         log.Timestamp.AsTime(),
+		ServiceName:       log.ServiceName,
+		Operation:         log.Operation,
+		ActorID:           log.ActorId,
+		ActorType:         log.ActorType,
+		AffectedResources: log.AffectedResources,
 		Metadata:          metadataMap,
-		IntegrityHash:     request.IntegrityHash,
+		IntegrityHash:     log.IntegrityHash,
 	}
 }
 
 // PersistLog implements CollectorServer.
 func (c CollectorAPI) PersistLog(ctx context.Context, request *PersistLogRequest) (*PersistLogReply, error) {
-	fmt.Println("Persisting", request.Id)
+	fmt.Println("Persisting", request.Log.Id)
 
-	log := LogFromPersistLogRequest(request)
+	if request.Log == nil {
+		return nil, fmt.Errorf("Log required")
+	}
+
+	log := LogEntityFromAPILog(request.Log)
 
 	result, err := c.persistence.PersistLog(ctx, log)
 
 	if err != nil {
 		if err == core.ErrorAlreadyPersistedLog {
 			return &PersistLogReply{
-				Id:      request.Id,
+				Id:      request.Log.Id,
 				Success: true,
 			}, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return &PersistLogReply{
-			Id:      request.Id,
+			Id:      request.Log.Id,
 			Success: false,
 		}, err
 	}

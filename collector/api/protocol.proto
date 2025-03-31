@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option go_package = "oversee/collector";
+option go_package = "oversee/collector/api";
 
-package collector;
+package api;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
@@ -10,9 +10,17 @@ import "google/protobuf/struct.proto";
 service Collector {
   rpc PersistLog (PersistLogRequest) returns (PersistLogReply) {}
   rpc BatchPersistLog (BatchPersistLogRequest) returns (PersistLogsReply) {}
+  rpc ListLogs(ListLogsRequest) returns (Logs) {}
 }
 
-message PersistLogRequest {
+message ListLogsRequest {
+}
+
+message Logs {
+  repeated Log logs = 1;
+}
+
+message Log {
   string id = 1;
   google.protobuf.Timestamp timestamp = 2;  // Event timestamp (ISO 8601)
   string service_name = 3;                   // Originating service
@@ -22,7 +30,14 @@ message PersistLogRequest {
   repeated string affected_resources = 7;    // List of resource IDs affected
   google.protobuf.Struct metadata = 8;
   string integrity_hash = 9;                // Optional HMAC/SHA256 hash for tamper-proofing
+}
 
+message PersistLogRequest {
+  Log log = 1;
+}
+
+message BatchPersistLogRequest {
+  repeated Log logs = 1;
 }
 
 message PersistLogReply {
@@ -30,9 +45,6 @@ message PersistLogReply {
   bool success = 2;
 }
 
-message BatchPersistLogRequest {
-  repeated PersistLogRequest logs = 1;
-}
 
 message PersistLogsReply {
   repeated PersistLogReply results = 1;

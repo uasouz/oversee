@@ -34,6 +34,108 @@ func isUniqueConstraintError(err error) bool {
 	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
+func (s *SQLitePersistence) ListLogs(ctx context.Context) ([]*core.Log, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, timestamp, service_name, operation, actor_id, actor_type, affected_resources, metadata, integrity_hash FROM logs")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []*core.Log
+	for rows.Next() {
+		log := &core.Log{}
+		var metadataJSON string
+		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorID, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+			return nil, err
+		}
+		log.Metadata = map[string]any{}
+		if err := json.Unmarshal([]byte(metadataJSON), &log.Metadata); err != nil {
+			return nil, err
+		}
+		logs = append(logs, log)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return logs, nil
+}
+
+func (s *SQLitePersistence) SearchLogs(ctx context.Context, query persistence.SearchQuery) ([]*core.Log, error) {
+	var whereClauses []string
+	var args []interface{}
+
+	if query.ServiceName != "" {
+		whereClauses = append(whereClauses, "service_name = ?")
+		args = append(args, query.ServiceName)
+	}
+
+	if query.Operation != "" {
+		whereClauses = append(whereClauses, "operation = ?")
+		args = append(args, query.Operation)
+	}
+
+	if query.ActorID != "" {
+		whereClauses = append(whereClauses, "actor_id = ?")
+		args = append(args, query.ActorID)
+	}
+
+	if query.ActorType != "" {
+		whereClauses = append(whereClauses, "actor_type = ?")
+		args = append(args, query.ActorType)
+	}
+
+	if len(query.AffectedResources) > 0 {
+		resourcesJSON, err := json.Marshal(query.AffectedResources)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal affected resources: %w", err)
+		}
+		whereClauses = append(whereClauses, "affected_resources = ?")
+		args = append(args, string(resourcesJSON))
+	}
+
+	if len(query.Metadata) > 0 {
+		metadataJSON, err := json.Marshal(query.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		whereClauses = append(whereClauses, "metadata LIKE ?")
+		args = append(args, "%"+string(metadataJSON)+"%")
+	}
+
+	queryString := "SELECT id, timestamp, service_name, operation, actor_id, actor_type, affected_resources, metadata, integrity_hash FROM logs"
+	if len(whereClauses) > 0 {
+		queryString += " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	rows, err := s.db.QueryContext(ctx, queryString, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []*core.Log
+	for rows.Next() {
+		log := &core.Log{}
+		var metadataJSON string
+		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorID, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+			return nil, err
+		}
+		log.Metadata = map[string]any{}
+		if err := json.Unmarshal([]byte(metadataJSON), &log.Metadata); err != nil {
+			return nil, err
+		}
+		logs = append(logs, log)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return logs, nil
+}
+
 func (s *SQLitePersistence) PersistLog(ctx context.Context, log *core.Log) (*persistence.LogPersistenceResult, error) {
 	query := `
 		INSERT INTO logs (

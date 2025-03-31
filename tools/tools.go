@@ -17,13 +17,13 @@ package tools
 //go:generate go install github.com/twitchtv/twirp/protoc-gen-twirp
 
 import (
-//	_ "golang.org/x/tools/cmd/goimports"
-//
-//	_ "github.com/mitchellh/gox"
-//
-//	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
-//
-//	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
-//
-//	_ "github.com/twitchtv/twirp/protoc-gen-twirp"
+	//	_ "golang.org/x/tools/cmd/goimports"
+	//
+	//	_ "github.com/mitchellh/gox"
+
+	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
+
+	_ "github.com/99designs/gqlgen"
+
+	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
 )
