@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"oversee/collector/api"
+	"oversee/collector/logsapi"
 	"oversee/collector/persistence/sqlite"
 )
 
@@ -13,7 +13,7 @@ func main() {
 		log.Fatal("Failed to initialize persistence")
 	}
 
-	collectorApi := api.NewCollectorAPI(sqlitePersistence)
+	collectorApi := logsapi.NewLogsAPI(sqlitePersistence)
 
 	collectorApi.Serve()
 }

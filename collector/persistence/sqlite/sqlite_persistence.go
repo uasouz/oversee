@@ -45,7 +45,7 @@ func (s *SQLitePersistence) ListLogs(ctx context.Context) ([]*core.Log, error) {
 	for rows.Next() {
 		log := &core.Log{}
 		var metadataJSON string
-		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorID, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
 			return nil, err
 		}
 		log.Metadata = map[string]any{}
@@ -64,7 +64,7 @@ func (s *SQLitePersistence) ListLogs(ctx context.Context) ([]*core.Log, error) {
 
 func (s *SQLitePersistence) SearchLogs(ctx context.Context, query persistence.SearchQuery) ([]*core.Log, error) {
 	var whereClauses []string
-	var args []interface{}
+	var args []any
 
 	if query.ServiceName != "" {
 		whereClauses = append(whereClauses, "service_name = ?")
@@ -119,7 +119,7 @@ func (s *SQLitePersistence) SearchLogs(ctx context.Context, query persistence.Se
 	for rows.Next() {
 		log := &core.Log{}
 		var metadataJSON string
-		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorID, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
 			return nil, err
 		}
 		log.Metadata = map[string]any{}
@@ -173,7 +173,7 @@ func (s *SQLitePersistence) PersistLog(ctx context.Context, log *core.Log) (*per
 		timestampInt,
 		log.ServiceName,
 		log.Operation,
-		log.ActorID,
+		log.ActorId,
 		log.ActorType,
 		affectedResourcesJSON,
 		string(metadataJSON),
@@ -196,6 +196,19 @@ func (s *SQLitePersistence) PersistLog(ctx context.Context, log *core.Log) (*per
 		ID:      fmt.Sprintf("%d", id),
 		Success: true,
 	}, nil
+}
+
+func (s *SQLitePersistence) areLogsAlreadyPersisted(ctx context.Context, logIDs []string) (map[string]bool, error) {
+	existingLogs := make(map[string]bool)
+	for _, id := range logIDs {
+		var exists bool
+		err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM logs WHERE id = ?)", id).Scan(&exists)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check if log with ID %s exists: %w", id, err)
+		}
+		existingLogs[id] = exists
+	}
+	return existingLogs, nil
 }
 
 func (s *SQLitePersistence) BatchPersistLog(ctx context.Context, logs []*core.Log) ([]*persistence.LogPersistenceResult, error) {
@@ -237,7 +250,7 @@ func (s *SQLitePersistence) BatchPersistLog(ctx context.Context, logs []*core.Lo
 			timestampInt,
 			log.ServiceName,
 			log.Operation,
-			log.ActorID,
+			log.ActorId,
 			log.ActorType,
 			affectedResourcesJSON,
 			string(metadataJSON),
@@ -245,12 +258,13 @@ func (s *SQLitePersistence) BatchPersistLog(ctx context.Context, logs []*core.Lo
 		)
 		if err != nil {
 			results[i] = &persistence.LogPersistenceResult{
-				ID:      log.ID,
+				ID:      log.ID.String(),
 				Success: false,
+				Reason:  core.ErrorAlreadyPersistedLog,
 			}
 		} else {
 			results[i] = &persistence.LogPersistenceResult{
-				ID:      log.ID,
+				ID:      log.ID.String(),
 				Success: true,
 			}
 		}

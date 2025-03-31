@@ -6,4 +6,4 @@ protoc --go_out=. --go_opt=paths=source_relative \
 # Generate Collector Proto
 protoc --go_out=. --go_opt=paths=source_relative \
     --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-    collector/api/protocol.proto
+    collector/logsapi/protocol.proto

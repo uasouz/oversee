@@ -2,20 +2,23 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
-	"oversee/collector"
+	"oversee/collector/logsapi"
+	"oversee/core"
 	"syscall"
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
 	"github.com/dgraph-io/ristretto/v2/z"
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	status "google.golang.org/grpc/status"
+	structpb "google.golang.org/protobuf/types/known/structpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Agent represents an agent in the system.
@@ -43,7 +46,7 @@ type Agent struct {
 
 	signals chan os.Signal
 
-	collectorClient     collector.CollectorClient
+	collectorClient     logsapi.CollectorClient
 	collectorClientConn *grpc.ClientConn
 	collectorAddress    string
 }
@@ -54,7 +57,7 @@ type Application struct {
 	InitializedAt time.Time
 }
 
-func (agent *Agent) newCollectorClient() (collector.CollectorClient, error) {
+func (agent *Agent) newCollectorClient() (logsapi.CollectorClient, error) {
 	fmt.Println("Connecting to", agent.collectorAddress)
 	// Set up a connection to the server.
 	conn, err := grpc.NewClient(agent.collectorAddress,
@@ -66,7 +69,7 @@ func (agent *Agent) newCollectorClient() (collector.CollectorClient, error) {
 
 	agent.collectorClientConn = conn
 
-	c := collector.NewCollectorClient(conn)
+	c := logsapi.NewCollectorClient(conn)
 
 	return c, nil
 }
@@ -82,24 +85,52 @@ func (agent *Agent) shutdown() {
 	os.Exit(0)
 }
 
-func (agent *Agent) Log(prefix string, log LogLine) error {
+func (agent *Agent) Log(log *core.Log) error {
 	return agent.db.Update(func(txn *badger.Txn) error {
-		newLogId := uuid.New()
-		err := txn.Set([]byte(prefix+"-"+newLogId.String()), log.Bytes())
+		err := txn.Set([]byte(log.ID.String()), log.Bytes())
 		return err
 	})
 }
 
-func (agent *Agent) batchDispatch(ctx context.Context, kvList *badger.KVList) error {
-	logs := []*collector.PersistLogRequest{}
+func CoreLogToLogsAPILog(log *core.Log) (*logsapi.Log, error) {
 
-	for _, item := range kvList.GetKv() {
-		logs = append(logs, &collector.PersistLogRequest{
-			Id: string(item.Key),
-		})
+	metadata, err := structpb.NewStruct(log.Metadata)
+
+	if err != nil {
+		return nil, err
 	}
 
-	reply, err := agent.collectorClient.BatchPersistLog(ctx, &collector.BatchPersistLogRequest{
+	return &logsapi.Log{
+		Id:                log.ID.String(),
+		Timestamp:         timestamppb.New(log.Timestamp),
+		ServiceName:       log.ServiceName,
+		Operation:         log.Operation,
+		ActorId:           log.ActorId,
+		ActorType:         log.ActorType,
+		AffectedResources: log.AffectedResources,
+		Metadata:          metadata,
+		IntegrityHash:     log.IntegrityHash,
+	}, nil
+}
+
+func (agent *Agent) batchDispatch(ctx context.Context, kvList *badger.KVList) error {
+	logs := []*logsapi.Log{}
+
+	for _, item := range kvList.GetKv() {
+		log := &core.Log{}
+
+		json.Unmarshal(item.GetValue(), log)
+
+		logsAPILog, err := CoreLogToLogsAPILog(log)
+
+		if err != nil {
+			return err
+		}
+
+		logs = append(logs, logsAPILog)
+	}
+
+	reply, err := agent.collectorClient.BatchPersistLog(ctx, &logsapi.BatchPersistLogRequest{
 		Logs: logs,
 	})
 
@@ -108,7 +139,7 @@ func (agent *Agent) batchDispatch(ctx context.Context, kvList *badger.KVList) er
 	}
 
 	for _, result := range reply.Results {
-		if result.GetSuccess() {
+		if result.GetSuccess() || (result.Reason.Code == core.ErrorCodeAlreadyPersistedLog) {
 			fmt.Println("Persisted", result.Id)
 			err = agent.db.Update(func(txn *badger.Txn) error {
 				return txn.Delete([]byte(result.Id))
@@ -128,8 +159,10 @@ func (agent *Agent) simpleDispatch(ctx context.Context, kvList *badger.KVList) e
 		fmt.Println("Consuming", string(item.Key), string(item.Value))
 		fmt.Println(agent.collectorAddress)
 
-		reply, err := agent.collectorClient.PersistLog(ctx, &collector.PersistLogRequest{
-			Id: string(item.Key),
+		reply, err := agent.collectorClient.PersistLog(ctx, &logsapi.PersistLogRequest{
+			Log: &logsapi.Log{
+				Id: string(item.Key),
+			},
 		})
 
 		if err != nil {

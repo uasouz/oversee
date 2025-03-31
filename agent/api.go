@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"oversee/core"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -16,7 +17,7 @@ type IngestionAPI struct {
 
 // Log implements AgentServer.
 func (a IngestionAPI) Log(ctx context.Context, request *LogRequest) (*LogReply, error) {
-	err := a.agent.Log("test", LogLine{
+	err := a.agent.Log(&core.Log{
 		ID:                uuid.New(),
 		Timestamp:         request.Timestamp.AsTime(),
 		ServiceName:       request.ServiceName,

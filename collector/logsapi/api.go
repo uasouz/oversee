@@ -1,4 +1,4 @@
-package api
+package logsapi
 
 import (
 	"context"
@@ -8,18 +8,19 @@ import (
 	"oversee/collector/persistence"
 	"oversee/core"
 
+	"github.com/google/uuid"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type CollectorAPI struct {
+type LogsAPI struct {
 	UnimplementedCollectorServer
 	persistence persistence.Persistence
 }
 
 // BatchPersistLog implements CollectorServer.
-func (c CollectorAPI) BatchPersistLog(ctx context.Context, request *BatchPersistLogRequest) (*PersistLogsReply, error) {
+func (c LogsAPI) BatchPersistLog(ctx context.Context, request *BatchPersistLogRequest) (*PersistLogsReply, error) {
 	fmt.Printf("Persisting %d logs", len(request.Logs))
 	logs := []*core.Log{}
 
@@ -48,10 +49,19 @@ func (c CollectorAPI) BatchPersistLog(ctx context.Context, request *BatchPersist
 }
 
 func LogPersistenceResultToPersistLogReply(result *persistence.LogPersistenceResult) *PersistLogReply {
-	return &PersistLogReply{
+	reply := &PersistLogReply{
 		Id:      result.ID,
 		Success: result.Success,
 	}
+
+	if result.Reason != nil {
+		reply.Reason = &Error{
+			Message: result.Reason.Message,
+			Code:    int32(result.Reason.Code),
+		}
+	}
+
+	return reply
 }
 
 func LogEntityFromAPILog(log *Log) *core.Log {
@@ -62,12 +72,14 @@ func LogEntityFromAPILog(log *Log) *core.Log {
 		}
 	}
 
+	logUUID, _ := uuid.Parse(log.Id)
+
 	return &core.Log{
-		ID:                log.Id,
+		ID:                logUUID,
 		Timestamp:         log.Timestamp.AsTime(),
 		ServiceName:       log.ServiceName,
 		Operation:         log.Operation,
-		ActorID:           log.ActorId,
+		ActorId:           log.ActorId,
 		ActorType:         log.ActorType,
 		AffectedResources: log.AffectedResources,
 		Metadata:          metadataMap,
@@ -76,7 +88,7 @@ func LogEntityFromAPILog(log *Log) *core.Log {
 }
 
 // PersistLog implements CollectorServer.
-func (c CollectorAPI) PersistLog(ctx context.Context, request *PersistLogRequest) (*PersistLogReply, error) {
+func (c LogsAPI) PersistLog(ctx context.Context, request *PersistLogRequest) (*PersistLogReply, error) {
 	fmt.Println("Persisting", request.Log.Id)
 
 	if request.Log == nil {
@@ -103,7 +115,7 @@ func (c CollectorAPI) PersistLog(ctx context.Context, request *PersistLogRequest
 	return LogPersistenceResultToPersistLogReply(result), nil
 }
 
-func (a *CollectorAPI) Serve() error {
+func (a *LogsAPI) Serve() error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", 4093))
 	fmt.Println("Starting collector API on port 4093")
 
@@ -123,8 +135,8 @@ func (a *CollectorAPI) Serve() error {
 	return nil
 }
 
-func NewCollectorAPI(persistence persistence.Persistence) *CollectorAPI {
-	return &CollectorAPI{
+func NewLogsAPI(persistence persistence.Persistence) *LogsAPI {
+	return &LogsAPI{
 		persistence: persistence,
 	}
 }

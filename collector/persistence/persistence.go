@@ -8,6 +8,7 @@ import (
 type LogPersistenceResult struct {
 	ID      string
 	Success bool
+	Reason  *core.Error
 }
 
 // TODO: Add support to supabase persistence

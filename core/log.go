@@ -1,15 +1,29 @@
 package core
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Log struct {
-	ID                string
+	ID                uuid.UUID
 	Timestamp         time.Time
 	ServiceName       string
 	Operation         string
-	ActorID           string
+	ActorId           string
 	ActorType         string
 	AffectedResources []string
 	Metadata          map[string]any
 	IntegrityHash     string
+}
+
+func (l *Log) String() string {
+	return string(l.Bytes())
+}
+
+func (l *Log) Bytes() []byte {
+	s, _ := json.Marshal(l)
+	return s
 }

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option go_package = "oversee/collector/api";
+option go_package = "oversee/collector/logsapi";
 
-package api;
+package logsapi;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
@@ -43,6 +43,12 @@ message BatchPersistLogRequest {
 message PersistLogReply {
   string id =1;
   bool success = 2;
+  Error reason = 3;
+}
+
+message Error {
+  string message =1;
+  int32 code = 2;
 }
 
 
