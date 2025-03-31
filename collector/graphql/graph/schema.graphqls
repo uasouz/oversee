@@ -1,28 +1,35 @@
-# GraphQL schema example
-#
-# https://gqlgen.com/getting-started/
+scalar Map
+scalar Int64
 
-type Todo {
+type AuditLogEvent {
   id: ID!
-  text: String!
-  done: Boolean!
-  user: User!
-}
-
-type User {
-  id: ID!
-  name: String!
+  timestamp: Int64!
+  service_name: String!
+  operation: String!
+  actor_id: String!
+  actor_type: String!
+  affected_resources: [String!]!
+  metadata: Map!
+  integrity_hash: String!
 }
 
 type Query {
-  todos: [Todo!]!
+  listAuditLogs(cursor: Cursor): [AuditLogEvent!]!
+  searchAuditLogs(query: SearchQuery!): [AuditLogEvent!]!
 }
 
-input NewTodo {
-  text: String!
-  userId: String!
+input SearchQuery {
+  serviceName: String
+  operation: String
+  actorID: String
+  actorType: String
+  affectedResources: [String]
+  metadata: Map
+  cursor: Cursor
 }
 
-type Mutation {
-  createTodo(input: NewTodo!): Todo!
+input Cursor {
+  Timestamp: Int64!
+  Id: ID!
 }
+

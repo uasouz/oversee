@@ -34,8 +34,14 @@ func isUniqueConstraintError(err error) bool {
 	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
-func (s *SQLitePersistence) ListLogs(ctx context.Context) ([]*core.Log, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, timestamp, service_name, operation, actor_id, actor_type, affected_resources, metadata, integrity_hash FROM logs")
+func (s *SQLitePersistence) ListLogs(ctx context.Context, cursorTimestamp int64, cursorID string) ([]*core.Log, error) {
+	queryString := "SELECT id, timestamp, service_name, operation, actor_id, actor_type, affected_resources, metadata, integrity_hash FROM logs"
+	if cursorTimestamp > 0 && cursorID != "" {
+		queryString += " WHERE (timestamp < ? OR (timestamp = ? AND id < ?))"
+	}
+	queryString += " ORDER BY timestamp DESC, id DESC LIMIT 50"
+
+	rows, err := s.db.QueryContext(ctx, queryString, cursorTimestamp, cursorTimestamp, cursorID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +114,11 @@ func (s *SQLitePersistence) SearchLogs(ctx context.Context, query persistence.Se
 	if len(whereClauses) > 0 {
 		queryString += " WHERE " + strings.Join(whereClauses, " AND ")
 	}
+	if query.CursorTimestamp > 0 && query.CursorID != "" {
+		queryString += " AND (timestamp < ? OR (timestamp = ? AND id < ?))"
+		args = append(args, query.CursorTimestamp, query.CursorTimestamp, query.CursorID)
+	}
+	queryString += " ORDER BY timestamp DESC, id DESC LIMIT 50"
 
 	rows, err := s.db.QueryContext(ctx, queryString, args...)
 	if err != nil {

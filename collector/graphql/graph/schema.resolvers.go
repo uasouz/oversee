@@ -6,25 +6,93 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"oversee/collector/graphql/graph/model"
+	"oversee/collector/persistence"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+// ListAuditLogs is the resolver for the listAuditLogs field.
+func (r *queryResolver) ListAuditLogs(ctx context.Context, cursor *model.Cursor) ([]*model.AuditLogEvent, error) {
+
+	cursorID := ""
+	cursorTimeStamp := 0
+
+	if cursor != nil {
+		cursorID = cursor.ID
+		cursorTimeStamp = cursor.Timestamp
+	}
+
+	// Use the SearchService to list logs
+	logs, err := r.searchService.ListLogs(ctx, int64(cursorTimeStamp), cursorID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []*core.Log to []*model.AuditLogEvent
+	var auditLogEvents []*model.AuditLogEvent
+	for _, log := range logs {
+		auditLogEvents = append(auditLogEvents, &model.AuditLogEvent{
+			ID:          log.ID.String(),
+			Timestamp:   int(log.Timestamp.Unix()),
+			ServiceName: log.ServiceName,
+			Operation:   log.Operation,
+			ActorID:     log.ActorId,
+			ActorType:   log.ActorType,
+			Metadata:    log.Metadata,
+		})
+	}
+
+	return auditLogEvents, nil
 }
 
-// Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
-}
+// SearchAuditLogs is the resolver for the searchAuditLogs field.
+func (r *queryResolver) SearchAuditLogs(ctx context.Context, query model.SearchQuery) ([]*model.AuditLogEvent, error) {
+	// Convert the model.SearchQuery to persistence.SearchQuery
+	persistenceQuery := persistence.SearchQuery{}
 
-// Mutation returns MutationResolver implementation.
-func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+	if query.ServiceName != nil {
+		persistenceQuery.ServiceName = *query.ServiceName
+	}
+	if query.Operation != nil {
+		persistenceQuery.Operation = *query.Operation
+	}
+
+	if query.ActorID != nil {
+		persistenceQuery.ActorID = *query.ActorID
+	}
+
+	//if query.AffectedResources != nil {
+	//	persistenceQuery.AffectedResources = query.AffectedResources
+	//}
+
+	if query.Cursor != nil {
+		persistenceQuery.CursorID = query.Cursor.ID
+		persistenceQuery.CursorTimestamp = int64(query.Cursor.Timestamp)
+	}
+
+	// Use the SearchService to search logs
+	logs, err := r.searchService.SearchLogs(ctx, persistenceQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert []*core.Log to []*model.AuditLogEvent
+	var auditLogEvents []*model.AuditLogEvent
+	for _, log := range logs {
+		auditLogEvents = append(auditLogEvents, &model.AuditLogEvent{
+			ID:          log.ID.String(),
+			Timestamp:   int(log.Timestamp.Unix()),
+			ServiceName: log.ServiceName,
+			Operation:   log.Operation,
+			ActorID:     log.ActorId,
+			ActorType:   log.ActorType,
+			Metadata:    log.Metadata,
+		})
+	}
+
+	return auditLogEvents, nil
+}
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

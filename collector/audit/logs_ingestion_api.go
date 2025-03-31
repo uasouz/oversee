@@ -1,4 +1,4 @@
-package logsapi
+package audit
 
 import (
 	"context"
@@ -14,13 +14,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type LogsAPI struct {
+type LogsIngestionAPI struct {
 	UnimplementedCollectorServer
 	persistence persistence.Persistence
 }
 
 // BatchPersistLog implements CollectorServer.
-func (c LogsAPI) BatchPersistLog(ctx context.Context, request *BatchPersistLogRequest) (*PersistLogsReply, error) {
+func (c LogsIngestionAPI) BatchPersistLog(ctx context.Context, request *BatchPersistLogRequest) (*PersistLogsReply, error) {
 	fmt.Printf("Persisting %d logs", len(request.Logs))
 	logs := []*core.Log{}
 
@@ -88,7 +88,7 @@ func LogEntityFromAPILog(log *Log) *core.Log {
 }
 
 // PersistLog implements CollectorServer.
-func (c LogsAPI) PersistLog(ctx context.Context, request *PersistLogRequest) (*PersistLogReply, error) {
+func (c LogsIngestionAPI) PersistLog(ctx context.Context, request *PersistLogRequest) (*PersistLogReply, error) {
 	fmt.Println("Persisting", request.Log.Id)
 
 	if request.Log == nil {
@@ -115,7 +115,7 @@ func (c LogsAPI) PersistLog(ctx context.Context, request *PersistLogRequest) (*P
 	return LogPersistenceResultToPersistLogReply(result), nil
 }
 
-func (a *LogsAPI) Serve() error {
+func (a *LogsIngestionAPI) Serve() error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", 4093))
 	fmt.Println("Starting collector API on port 4093")
 
@@ -135,8 +135,8 @@ func (a *LogsAPI) Serve() error {
 	return nil
 }
 
-func NewLogsAPI(persistence persistence.Persistence) *LogsAPI {
-	return &LogsAPI{
+func NewLogsIngestionAPI(persistence persistence.Persistence) *LogsIngestionAPI {
+	return &LogsIngestionAPI{
 		persistence: persistence,
 	}
 }

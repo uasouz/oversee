@@ -2,25 +2,32 @@
 
 package model
 
-type Mutation struct {
+type AuditLogEvent struct {
+	ID                string         `json:"id"`
+	Timestamp         int            `json:"timestamp"`
+	ServiceName       string         `json:"service_name"`
+	Operation         string         `json:"operation"`
+	ActorID           string         `json:"actor_id"`
+	ActorType         string         `json:"actor_type"`
+	AffectedResources []string       `json:"affected_resources"`
+	Metadata          map[string]any `json:"metadata"`
+	IntegrityHash     string         `json:"integrity_hash"`
 }
 
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
+type Cursor struct {
+	Timestamp int    `json:"Timestamp"`
+	ID        string `json:"Id"`
 }
 
 type Query struct {
 }
 
-type Todo struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-	User *User  `json:"user"`
-}
-
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type SearchQuery struct {
+	ServiceName       *string        `json:"serviceName,omitempty"`
+	Operation         *string        `json:"operation,omitempty"`
+	ActorID           *string        `json:"actorID,omitempty"`
+	ActorType         *string        `json:"actorType,omitempty"`
+	AffectedResources []*string      `json:"affectedResources,omitempty"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
+	Cursor            *Cursor        `json:"cursor,omitempty"`
 }
