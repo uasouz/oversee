@@ -12,7 +12,6 @@ import (
 
 // ListAuditLogs is the resolver for the listAuditLogs field.
 func (r *queryResolver) ListAuditLogs(ctx context.Context, cursor *model.Cursor) ([]*model.AuditLogEvent, error) {
-
 	cursorID := ""
 	cursorTimeStamp := 0
 
@@ -22,7 +21,7 @@ func (r *queryResolver) ListAuditLogs(ctx context.Context, cursor *model.Cursor)
 	}
 
 	// Use the SearchService to list logs
-	logs, err := r.searchService.ListLogs(ctx, int64(cursorTimeStamp), cursorID)
+	logs, err := r.SearchService.ListLogs(ctx, int64(cursorTimeStamp), cursorID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +69,7 @@ func (r *queryResolver) SearchAuditLogs(ctx context.Context, query model.SearchQ
 	}
 
 	// Use the SearchService to search logs
-	logs, err := r.searchService.SearchLogs(ctx, persistenceQuery)
+	logs, err := r.SearchService.SearchLogs(ctx, persistenceQuery)
 	if err != nil {
 		return nil, err
 	}

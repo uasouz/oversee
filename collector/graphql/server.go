@@ -1,9 +1,11 @@
-package main
+package graphql
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"oversee/collector/audit"
 	"oversee/collector/graphql/graph"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -16,13 +18,26 @@ import (
 
 const defaultPort = "8080"
 
-func main() {
+type GraphqlAPIServer struct {
+	searchService *audit.SearchService
+	server        *http.Server
+}
+
+func NewGraphqlAPIServer(searchService *audit.SearchService) *GraphqlAPIServer {
+	return &GraphqlAPIServer{
+		searchService: searchService,
+	}
+}
+
+func (g *GraphqlAPIServer) Start() error {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort
 	}
 
-	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
+	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{
+		SearchService: g.searchService,
+	}}))
 
 	srv.AddTransport(transport.Options{})
 	srv.AddTransport(transport.GET{})
@@ -38,6 +53,15 @@ func main() {
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)
 
+	g.server = &http.Server{Addr: ":" + port}
+
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	return g.server.ListenAndServe()
+}
+
+func (g *GraphqlAPIServer) Shutdown(ctx context.Context) error {
+	if g.server != nil {
+		return g.server.Shutdown(ctx)
+	}
+	return nil
 }

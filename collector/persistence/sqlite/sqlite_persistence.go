@@ -51,7 +51,9 @@ func (s *SQLitePersistence) ListLogs(ctx context.Context, cursorTimestamp int64,
 	for rows.Next() {
 		log := &core.Log{}
 		var metadataJSON string
-		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+		var unixTimestamp int64
+		var affectedResources []byte
+		if err := rows.Scan(&log.ID, &unixTimestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &affectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
 			return nil, err
 		}
 		log.Metadata = map[string]any{}

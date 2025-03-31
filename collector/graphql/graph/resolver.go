@@ -9,5 +9,5 @@ import "oversee/collector/audit"
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	searchService *audit.SearchService
+	SearchService *audit.SearchService
 }

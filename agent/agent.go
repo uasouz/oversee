@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"oversee/collector/logsapi"
+	"oversee/collector/audit"
 	"oversee/core"
 	"syscall"
 	"time"
@@ -46,7 +46,7 @@ type Agent struct {
 
 	signals chan os.Signal
 
-	collectorClient     logsapi.CollectorClient
+	collectorClient     audit.CollectorClient
 	collectorClientConn *grpc.ClientConn
 	collectorAddress    string
 }
@@ -57,7 +57,7 @@ type Application struct {
 	InitializedAt time.Time
 }
 
-func (agent *Agent) newCollectorClient() (logsapi.CollectorClient, error) {
+func (agent *Agent) newCollectorClient() (audit.CollectorClient, error) {
 	fmt.Println("Connecting to", agent.collectorAddress)
 	// Set up a connection to the server.
 	conn, err := grpc.NewClient(agent.collectorAddress,
@@ -69,7 +69,7 @@ func (agent *Agent) newCollectorClient() (logsapi.CollectorClient, error) {
 
 	agent.collectorClientConn = conn
 
-	c := logsapi.NewCollectorClient(conn)
+	c := audit.NewCollectorClient(conn)
 
 	return c, nil
 }
@@ -92,7 +92,7 @@ func (agent *Agent) Log(log *core.Log) error {
 	})
 }
 
-func CoreLogToLogsAPILog(log *core.Log) (*logsapi.Log, error) {
+func CoreLogToLogsAPILog(log *core.Log) (*audit.Log, error) {
 
 	metadata, err := structpb.NewStruct(log.Metadata)
 
@@ -100,7 +100,7 @@ func CoreLogToLogsAPILog(log *core.Log) (*logsapi.Log, error) {
 		return nil, err
 	}
 
-	return &logsapi.Log{
+	return &audit.Log{
 		Id:                log.ID.String(),
 		Timestamp:         timestamppb.New(log.Timestamp),
 		ServiceName:       log.ServiceName,
@@ -114,7 +114,7 @@ func CoreLogToLogsAPILog(log *core.Log) (*logsapi.Log, error) {
 }
 
 func (agent *Agent) batchDispatch(ctx context.Context, kvList *badger.KVList) error {
-	logs := []*logsapi.Log{}
+	logs := []*audit.Log{}
 
 	for _, item := range kvList.GetKv() {
 		log := &core.Log{}
@@ -130,7 +130,7 @@ func (agent *Agent) batchDispatch(ctx context.Context, kvList *badger.KVList) er
 		logs = append(logs, logsAPILog)
 	}
 
-	reply, err := agent.collectorClient.BatchPersistLog(ctx, &logsapi.BatchPersistLogRequest{
+	reply, err := agent.collectorClient.BatchPersistLog(ctx, &audit.BatchPersistLogRequest{
 		Logs: logs,
 	})
 
@@ -159,8 +159,8 @@ func (agent *Agent) simpleDispatch(ctx context.Context, kvList *badger.KVList) e
 		fmt.Println("Consuming", string(item.Key), string(item.Value))
 		fmt.Println(agent.collectorAddress)
 
-		reply, err := agent.collectorClient.PersistLog(ctx, &logsapi.PersistLogRequest{
-			Log: &logsapi.Log{
+		reply, err := agent.collectorClient.PersistLog(ctx, &audit.PersistLogRequest{
+			Log: &audit.Log{
 				Id: string(item.Key),
 			},
 		})
