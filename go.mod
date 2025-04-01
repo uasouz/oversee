@@ -5,6 +5,7 @@ go 1.23.5
 require (
 	github.com/99designs/gqlgen v0.17.70
 	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/rs/cors v1.11.1
 	github.com/vektah/gqlparser/v2 v2.5.23
 	google.golang.org/grpc v1.70.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1

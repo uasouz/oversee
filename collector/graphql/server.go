@@ -14,6 +14,8 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/vektah/gqlparser/v2/ast"
+
+	"github.com/rs/cors"
 )
 
 const defaultPort = "8080"
@@ -50,8 +52,11 @@ func (g *GraphqlAPIServer) Start() error {
 		Cache: lru.New[string](100),
 	})
 
+	c := cors.Default()
+	handler := c.Handler(srv)
+
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	http.Handle("/query", handler)
 
 	g.server = &http.Server{Addr: ":" + port}
 
