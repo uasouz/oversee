@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"oversee/collector/persistence"
 	"oversee/core"
@@ -45,19 +46,29 @@ func (s *SQLitePersistence) ListLogs(ctx context.Context, cursorTimestamp int64,
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	var logs []*core.Log
+
 	for rows.Next() {
 		log := &core.Log{}
 		var metadataJSON string
 		var unixTimestamp int64
 		var affectedResources []byte
-		if err := rows.Scan(&log.ID, &unixTimestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &affectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+
+		if err = rows.Scan(&log.ID, &unixTimestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &affectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
 			return nil, err
 		}
+
 		log.Metadata = map[string]any{}
-		if err := json.Unmarshal([]byte(metadataJSON), &log.Metadata); err != nil {
+		if err = json.Unmarshal([]byte(metadataJSON), &log.Metadata); err != nil {
+			return nil, err
+		}
+
+		log.Timestamp = time.Unix(unixTimestamp, 0)
+
+		if err = json.Unmarshal(affectedResources, &log.AffectedResources); err != nil {
 			return nil, err
 		}
 		logs = append(logs, log)
@@ -131,14 +142,28 @@ func (s *SQLitePersistence) SearchLogs(ctx context.Context, query persistence.Se
 	var logs []*core.Log
 	for rows.Next() {
 		log := &core.Log{}
+
 		var metadataJSON string
-		if err := rows.Scan(&log.ID, &log.Timestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &log.AffectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+		var unixTimestamp int64
+		var affectedResources []byte
+
+		if err := rows.Scan(&log.ID, &unixTimestamp, &log.ServiceName, &log.Operation, &log.ActorId, &log.ActorType, &affectedResources, &metadataJSON, &log.IntegrityHash); err != nil {
+			fmt.Println(err.Error())
 			return nil, err
 		}
+
 		log.Metadata = map[string]any{}
 		if err := json.Unmarshal([]byte(metadataJSON), &log.Metadata); err != nil {
 			return nil, err
 		}
+
+		log.Timestamp = time.Unix(unixTimestamp, 0)
+
+		log.AffectedResources = []string{}
+		if err := json.Unmarshal(affectedResources, &log.AffectedResources); err != nil {
+			return nil, err
+		}
+
 		logs = append(logs, log)
 	}
 

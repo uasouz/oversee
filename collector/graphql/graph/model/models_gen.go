@@ -2,9 +2,13 @@
 
 package model
 
+import (
+	"time"
+)
+
 type AuditLogEvent struct {
 	ID                string         `json:"id"`
-	Timestamp         int            `json:"timestamp"`
+	Timestamp         time.Time      `json:"timestamp"`
 	ServiceName       string         `json:"service_name"`
 	Operation         string         `json:"operation"`
 	ActorID           string         `json:"actor_id"`
@@ -15,8 +19,8 @@ type AuditLogEvent struct {
 }
 
 type Cursor struct {
-	Timestamp int    `json:"Timestamp"`
-	ID        string `json:"Id"`
+	Timestamp time.Time `json:"Timestamp"`
+	ID        string    `json:"Id"`
 }
 
 type Query struct {

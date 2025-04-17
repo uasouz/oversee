@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 	"oversee/collector/graphql/graph/model"
 	"oversee/collector/persistence"
 )
@@ -13,25 +14,27 @@ import (
 // ListAuditLogs is the resolver for the listAuditLogs field.
 func (r *queryResolver) ListAuditLogs(ctx context.Context, cursor *model.Cursor) ([]*model.AuditLogEvent, error) {
 	cursorID := ""
-	cursorTimeStamp := 0
+	var cursorTimeStamp int64
 
 	if cursor != nil {
 		cursorID = cursor.ID
-		cursorTimeStamp = cursor.Timestamp
+		cursorTimeStamp = cursor.Timestamp.Unix()
 	}
 
 	// Use the SearchService to list logs
-	logs, err := r.SearchService.ListLogs(ctx, int64(cursorTimeStamp), cursorID)
+	logs, err := r.SearchService.ListLogs(ctx, cursorTimeStamp, cursorID)
 	if err != nil {
+		fmt.Println("Wth")
 		return nil, err
 	}
 
 	// Convert []*core.Log to []*model.AuditLogEvent
 	var auditLogEvents []*model.AuditLogEvent
 	for _, log := range logs {
+		fmt.Println(log)
 		auditLogEvents = append(auditLogEvents, &model.AuditLogEvent{
 			ID:          log.ID.String(),
-			Timestamp:   int(log.Timestamp.Unix()),
+			Timestamp:   log.Timestamp,
 			ServiceName: log.ServiceName,
 			Operation:   log.Operation,
 			ActorID:     log.ActorId,
@@ -65,7 +68,7 @@ func (r *queryResolver) SearchAuditLogs(ctx context.Context, query model.SearchQ
 
 	if query.Cursor != nil {
 		persistenceQuery.CursorID = query.Cursor.ID
-		persistenceQuery.CursorTimestamp = int64(query.Cursor.Timestamp)
+		persistenceQuery.CursorTimestamp = query.Cursor.Timestamp.Unix()
 	}
 
 	// Use the SearchService to search logs
@@ -79,7 +82,7 @@ func (r *queryResolver) SearchAuditLogs(ctx context.Context, query model.SearchQ
 	for _, log := range logs {
 		auditLogEvents = append(auditLogEvents, &model.AuditLogEvent{
 			ID:          log.ID.String(),
-			Timestamp:   int(log.Timestamp.Unix()),
+			Timestamp:   log.Timestamp,
 			ServiceName: log.ServiceName,
 			Operation:   log.Operation,
 			ActorID:     log.ActorId,

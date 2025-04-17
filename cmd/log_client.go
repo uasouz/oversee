@@ -37,13 +37,13 @@ func main() {
 
 	_, err = c.Log(ctx, &pb.LogRequest{
 		ServiceName:       "Auditable",
-		Operation:         "",
-		ActorId:           "",
-		ActorType:         "",
-		AffectedResources: []string{},
+		Operation:         "demo_log_audit",
+		ActorId:           "demo_app",
+		ActorType:         "user",
+		AffectedResources: []string{"logs"},
 		Metadata:          nil,
 		IntegrityHash:     "",
-		Timestamp:         &timestamppb.Timestamp{},
+		Timestamp:         timestamppb.Now(),
 	})
 
 	if err != nil {

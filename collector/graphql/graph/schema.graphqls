@@ -1,9 +1,10 @@
 scalar Map
 scalar Int64
+scalar Time
 
 type AuditLogEvent {
   id: ID!
-  timestamp: Int64!
+  timestamp: Time!
   service_name: String!
   operation: String!
   actor_id: String!
@@ -29,7 +30,7 @@ input SearchQuery {
 }
 
 input Cursor {
-  Timestamp: Int64!
+  Timestamp: Time!
   Id: ID!
 }
 

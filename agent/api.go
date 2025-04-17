@@ -24,7 +24,7 @@ func (a IngestionAPI) Log(ctx context.Context, request *LogRequest) (*LogReply, 
 		Operation:         request.Operation,
 		ActorId:           request.ActorId,
 		ActorType:         request.ActorType,
-		AffectedResources: []string{},
+		AffectedResources: request.AffectedResources,
 		Metadata:          map[string]any{},
 		IntegrityHash:     "",
 	})
